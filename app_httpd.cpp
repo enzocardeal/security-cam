@@ -14,7 +14,6 @@
 #include <Arduino.h>
 #include "esp_http_client.h"
 #include "esp_log.h"
-// #include <Base64.h>
 
 #include "esp_http_server.h"
 #include "esp_timer.h"
@@ -37,6 +36,7 @@ static const char *TAG = "camera_httpd";
 
 esp_err_t send_jpeg_to_server(uint8_t *jpeg_data, size_t jpeg_len)
 {
+
     const char *cert_pem = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
@@ -62,7 +62,7 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     // Serial.println(cert_pem);
     Serial.print("Sending jpeg to aws.\n");
     esp_http_client_config_t config = {
-        // .url = "http://webhook.site/8386fb4d-a4a6-4d14-bd29-33df1a114d99", // Replace with your server URL
+        //.url = "http://webhook.site/8386fb4d-a4a6-4d14-bd29-33df1a114d99", // Replace with your server URL
         .url = "https://dc8mx8rpl5.execute-api.us-east-1.amazonaws.com/v1/", // Replace with your server URL
         .cert_pem = cert_pem,
         .method = HTTP_METHOD_POST

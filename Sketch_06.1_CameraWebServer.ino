@@ -40,7 +40,11 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
-
+  if(psramFound()){
+    Serial.println("PSRAM Found.");
+  } else {
+    Serial.println("PSRAM NOT Found.");
+  }
   config_init();
 
   // camera init
