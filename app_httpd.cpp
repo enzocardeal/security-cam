@@ -37,32 +37,47 @@ static const char *TAG = "camera_httpd";
 
 esp_err_t send_jpeg_to_server(uint8_t *jpeg_data, size_t jpeg_len)
 {
-    // Serial.print("Sending jpeg to aws.\n");
+    const char *cert_pem = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
+ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
+b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv
+b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj
+ca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM
+9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw
+IFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6
+VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L
+93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm
+jgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC
+AYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA
+A4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI
+U5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUs
+N+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vv
+o/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU
+5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpy
+rqXRfboQnoZsG4q5WTP468SQvvG5
+-----END CERTIFICATE-----
+)EOF";
+    // Serial.println(cert_pem);
+    Serial.print("Sending jpeg to aws.\n");
     esp_http_client_config_t config = {
-        .url = "http://webhook.site/8386fb4d-a4a6-4d14-bd29-33df1a114d99", // Replace with your server URL
-        .method = HTTP_METHOD_POST,
+        // .url = "http://webhook.site/8386fb4d-a4a6-4d14-bd29-33df1a114d99", // Replace with your server URL
+        .url = "https://dc8mx8rpl5.execute-api.us-east-1.amazonaws.com/v1/", // Replace with your server URL
+        .cert_pem = cert_pem,
+        .method = HTTP_METHOD_POST
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
 
     esp_http_client_set_header(client, "Content-Type", "image/jpeg");
+    esp_http_client_set_header(client, "x-api-key", "efBDwyxUJM6sz4tdCav619TPmISX69Oz7AMEKGIi");
     esp_http_client_set_post_field(client, (const char *)jpeg_data, jpeg_len);
-
-    // int encodedLen = Base64.encodedLength(jpeg_len);
-    // char encoded[encodedLen + 1];
-    // Base64.encode(encoded, (char *)jpeg_data, jpeg_len);
-    // esp_http_client_set_header(client, "Content-Type", "application/base64");
-    // esp_http_client_set_post_field(client, encoded, encodedLen);
 
     esp_err_t err = esp_http_client_perform(client);
 
     if (err == ESP_OK)
     {
-        char buffer[50];
-        // sprintf(buffer, "HTTP POST Status = %d, content_length = %d",
-        //         esp_http_client_get_status_code(client),
-        //         esp_http_client_get_content_length(client));
-        // Serial.println(buffer);
         ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
                  esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
@@ -751,12 +766,12 @@ static esp_err_t stream_handler(httpd_req_t *req)
                             fr_ready = esp_timer_get_time();
 #endif
 
-                            fb_data_t rfb;
-                            rfb.width = out_width;
-                            rfb.height = out_height;
-                            rfb.data = out_buf;
-                            rfb.bytes_per_pixel = 3;
-                            rfb.format = FB_BGR888;
+                            // fb_data_t rfb;
+                            // rfb.width = out_width;
+                            // rfb.height = out_height;
+                            // rfb.data = out_buf;
+                            // rfb.bytes_per_pixel = 3;
+                            // rfb.format = FB_BGR888;
 
 #if TWO_STAGE
                             std::list<dl::detect::result_t> &candidates = s1.infer((uint8_t *)out_buf, {(int)out_height, (int)out_width, 3});
@@ -770,22 +785,26 @@ static esp_err_t stream_handler(httpd_req_t *req)
                             fr_recognize = fr_face;
 #endif
 
+                            s = fmt2jpg(out_buf, out_len, out_width, out_height, PIXFORMAT_RGB888, 90, &_jpg_buf, &_jpg_buf_len);
+                            free(out_buf);
                             if (results.size() > 0) {
 #if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
                                 detected = true;
 #endif
 #if CONFIG_ESP_FACE_RECOGNITION_ENABLED
                                 if (recognition_enabled) {
-                                    face_id = run_face_recognition(&rfb, &results);
+                                    // face_id = run_face_recognition(&rfb, &results);
     #if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
                                     fr_recognize = esp_timer_get_time();
     #endif
                                 }
 #endif
-                                draw_face_boxes(&rfb, &results, face_id);
+                                esp_err_t send_err = send_jpeg_to_server(_jpg_buf, _jpg_buf_len);
+                                if (send_err != ESP_OK) {
+                                    ESP_LOGE(TAG, "Failed to send JPEG to server: %s", esp_err_to_name(send_err));
+                                }
+                                // draw_face_boxes(&rfb, &results, face_id);
                             }
-                            s = fmt2jpg(out_buf, out_len, out_width, out_height, PIXFORMAT_RGB888, 90, &_jpg_buf, &_jpg_buf_len);
-                            free(out_buf);
                             if (!s) {
                                 ESP_LOGE(TAG, "fmt2jpg failed");
                                 res = ESP_FAIL;
