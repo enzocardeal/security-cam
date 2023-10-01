@@ -102,6 +102,7 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     }
 
     esp_http_client_cleanup(client);
+    delay(3000);
     xSemaphoreGive(responseSemaphore);
     vTaskDelete(NULL);
     // return err;
