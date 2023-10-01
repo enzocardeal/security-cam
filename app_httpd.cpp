@@ -14,6 +14,10 @@
 #include <Arduino.h>
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include <iostream>
 
 #include "esp_http_server.h"
 #include "esp_timer.h"
@@ -33,9 +37,18 @@ static const char *TAG = "camera_httpd";
 #endif
 
 // -------------------My Code----------------------------------------
+SemaphoreHandle_t responseSemaphore;
+typedef struct {
+    uint8_t *jpeg_data;
+    size_t jpeg_len;
+} FaceDetectionParams;
 
-esp_err_t send_jpeg_to_server(uint8_t *jpeg_data, size_t jpeg_len)
+// esp_err_t send_jpeg_to_server(uint8_t *jpeg_data, size_t jpeg_len)
+void send_jpeg_to_server(void *parameter)
 {
+    FaceDetectionParams *params = (FaceDetectionParams *)parameter;
+    uint8_t *jpeg_data = params->jpeg_data;
+    size_t jpeg_len = params->jpeg_len;
 
     const char *cert_pem = R"EOF(
 -----BEGIN CERTIFICATE-----
@@ -78,6 +91,7 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
 
     if (err == ESP_OK)
     {
+        std::cout << "The status code is " << esp_http_client_get_status_code(client) << '\n';
         ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
                  esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
@@ -88,10 +102,16 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     }
 
     esp_http_client_cleanup(client);
-
-    return err;
+    xSemaphoreGive(responseSemaphore);
+    vTaskDelete(NULL);
+    // return err;
 }
 
+void debug(void *parameter){
+    Serial.println("executado.");
+    xSemaphoreGive(responseSemaphore);
+    vTaskDelete(NULL);
+}
 // ------------------------------------------------------------------
 
 // Face Detection will not work on boards without (or with disabled) PSRAM
@@ -476,11 +496,12 @@ static esp_err_t capture_handler(httpd_req_t *req)
             fb_len = fb->len;
 #endif
             res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-            esp_err_t send_err = send_jpeg_to_server(fb->buf, fb->len);
-            if (send_err != ESP_OK)
-            {
-                ESP_LOGE(TAG, "Failed to send JPEG to server: %s", esp_err_to_name(send_err));
-            }
+            //send_jpeg_to_server(fb->buf, fb->len);
+            // esp_err_t send_err = send_jpeg_to_server(fb->buf, fb->len);
+            // if (send_err != ESP_OK)
+            // {
+            //     ESP_LOGE(TAG, "Failed to send JPEG to server: %s", esp_err_to_name(send_err));
+            // }
         }
         else
         {
@@ -799,10 +820,22 @@ static esp_err_t stream_handler(httpd_req_t *req)
     #endif
                                 }
 #endif
-                                esp_err_t send_err = send_jpeg_to_server(_jpg_buf, _jpg_buf_len);
-                                if (send_err != ESP_OK) {
-                                    ESP_LOGE(TAG, "Failed to send JPEG to server: %s", esp_err_to_name(send_err));
+                                if(xSemaphoreTake(responseSemaphore, (TickType_t)10) == pdTRUE) {
+                                    // xTaskCreate(&debug, "FaceDetectionTask", 2048, NULL, 1, NULL);
+                                    FaceDetectionParams *params = (FaceDetectionParams *)malloc(sizeof(FaceDetectionParams));
+                                    if (params != NULL) {
+                                        params->jpeg_data = _jpg_buf;
+                                        params->jpeg_len = _jpg_buf_len;
+
+                                        xTaskCreate(&send_jpeg_to_server, "FaceDetectionTask", 10000, params, 0, NULL);
+                                    } else {
+                                        ESP_LOGE(TAG, "Failed to allocate memory for parameters");
+                                    }
                                 }
+                                // esp_err_t send_err = send_jpeg_to_server(_jpg_buf, _jpg_buf_len);
+                                // if (send_err != ESP_OK) {
+                                //     ESP_LOGE(TAG, "Failed to send JPEG to server: %s", esp_err_to_name(send_err));
+                                // }
                                 // draw_face_boxes(&rfb, &results, face_id);
                             }
                             if (!s) {
@@ -1341,6 +1374,8 @@ static esp_err_t index_handler(httpd_req_t *req)
 
 void startCameraServer()
 {
+    responseSemaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(responseSemaphore);
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers = 16;
 
