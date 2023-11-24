@@ -28,10 +28,16 @@
 
 
 #include "camera_pins.h"
+#include "Globals.h"
 
-const char *ssid_Router = "apt62";           //input your wifi name
-const char *password_Router = "53j4M3n4s*";  //input your wifi passwords
+const char *ssid_Router = "a";           //input your wifi name
+const char *password_Router = "a";  //input your wifi passwords
 camera_config_t config;
+
+const int RED_LED = 32;
+const int GREEN_LED = 33;
+bool global_isRecognized = false;
+unsigned long lastUpdateTime = 0;
 
 void startCameraServer();
 void config_init();
@@ -73,10 +79,31 @@ void setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+
+
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  digitalWrite(RED_LED, HIGH);
+  digitalWrite(GREEN_LED, LOW);
 }
 
 void loop() {
-  ;
+  // Current time
+  unsigned long currentTime = millis();
+
+  if(!global_isRecognized) {
+    lastUpdateTime = currentTime;
+  } else if ((currentTime - lastUpdateTime <= 3000)) {
+    digitalWrite(RED_LED, LOW);
+    digitalWrite(GREEN_LED, HIGH);
+  } else {
+    global_isRecognized = false;
+    lastUpdateTime = currentTime;
+
+    digitalWrite(RED_LED, HIGH);
+    digitalWrite(GREEN_LED, LOW);
+  }
+
 }
 
 void config_init() {

@@ -28,6 +28,9 @@
 #include "sdkconfig.h"
 #include "camera_index.h"
 
+#include <cJSON.h>
+#include "Globals.h"
+
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
 #define TAG ""
@@ -43,6 +46,89 @@ typedef struct {
     size_t jpeg_len;
 } FaceDetectionParams;
 
+std::string global_message;
+std::string global_name;
+
+// Buffer to accumulate the response
+std::string response_buffer;
+
+
+// Function to parse JSON and extract values
+void parse_json(const char *json_str) {
+    cJSON *json = cJSON_Parse(json_str);
+    if (json == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            ESP_LOGE("JSON", "Error before: %s", error_ptr);
+        }
+        return;
+    }
+
+    // Extract the "body" object as a string
+    cJSON *body = cJSON_GetObjectItemCaseSensitive(json, "body");
+    if (!cJSON_IsString(body) || (body->valuestring == NULL)) {
+        ESP_LOGE("JSON", "Body not found or is not a string in JSON");
+        cJSON_Delete(json);
+        return;
+    }
+
+    // Parse the "body" string as another JSON object
+    cJSON *inner_json = cJSON_Parse(body->valuestring);
+    if (inner_json == NULL) {
+        ESP_LOGE("JSON", "Error parsing inner JSON");
+        cJSON_Delete(json);
+        return;
+    }
+
+    // Extract fields from the inner JSON object
+    cJSON *message = cJSON_GetObjectItemCaseSensitive(inner_json, "message");
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(inner_json, "name");
+    cJSON *isRecognized = cJSON_GetObjectItemCaseSensitive(inner_json, "isRecognized");
+
+    if (cJSON_IsString(message) && (message->valuestring != NULL)) {
+        global_message = message->valuestring;
+    }
+
+    if (cJSON_IsString(name) && (name->valuestring != NULL)) {
+        global_name = name->valuestring;
+    }
+
+    if (cJSON_IsNumber(isRecognized)) {
+        global_isRecognized = (isRecognized->valueint != 0);
+    }
+
+    // Clean up
+    cJSON_Delete(inner_json);
+    cJSON_Delete(json);
+}
+// Function to handle HTTP events
+esp_err_t client_event_handler(esp_http_client_event_t *evt) {
+    switch(evt->event_id) {
+        case HTTP_EVENT_ON_DATA:
+            // Append this chunk of data to the response buffer
+            response_buffer.append(static_cast<char*>(evt->data), evt->data_len);
+            break;
+        
+        case HTTP_EVENT_ON_FINISH:
+            // All chunks have been received
+            std::cout << "Full response received";
+            std::cout << response_buffer << std::endl;
+
+            global_message.clear();
+            global_name.clear();
+
+            // Parse the JSON
+            parse_json(response_buffer.c_str());
+
+            // Clear the buffer for the next response
+            response_buffer.clear();
+            break;
+
+        default:
+            break;
+    }
+    return ESP_OK;
+}
 // esp_err_t send_jpeg_to_server(uint8_t *jpeg_data, size_t jpeg_len)
 void send_jpeg_to_server(void *parameter)
 {
@@ -75,10 +161,11 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     // Serial.println(cert_pem);
     Serial.print("Sending jpeg to aws.\n");
     esp_http_client_config_t config = {
-        //.url = "http://webhook.site/8386fb4d-a4a6-4d14-bd29-33df1a114d99", // Replace with your server URL
-        .url = "https://dc8mx8rpl5.execute-api.us-east-1.amazonaws.com/v1/", // Replace with your server URL
+        //.url = "http://webhook.site/21c02d79-2c1a-4301-b337-d32577865973", // Replace with your server URL
+        .url = "https://onik30kmlb.execute-api.us-east-2.amazonaws.com/TEST/recognize", // Replace with your server URL
         .cert_pem = cert_pem,
-        .method = HTTP_METHOD_POST
+        .method = HTTP_METHOD_POST,
+        .event_handler = client_event_handler
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -92,9 +179,12 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
     if (err == ESP_OK)
     {
         std::cout << "The status code is " << esp_http_client_get_status_code(client) << '\n';
-        ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
-                 esp_http_client_get_status_code(client),
-                 esp_http_client_get_content_length(client));
+        std::cout << "HTTP POST Status = " << esp_http_client_get_status_code(client) 
+          << ", content_length = " << esp_http_client_get_content_length(client) << std::endl;
+        std::cout << "Message: " << global_message << '\n';
+        std::cout << "Name: " << global_name << '\n';
+        std::cout << "isRecognized: " << global_isRecognized << '\n';
+
     }
     else
     {
