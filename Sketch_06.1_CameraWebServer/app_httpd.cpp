@@ -30,6 +30,7 @@
 
 #include <cJSON.h>
 #include "Globals.h"
+#include <string>
 
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
@@ -47,7 +48,7 @@ typedef struct {
 } FaceDetectionParams;
 
 std::string global_message;
-std::string global_name;
+//std::string global_name;
 
 // Buffer to accumulate the response
 std::string response_buffer;

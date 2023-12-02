@@ -29,6 +29,8 @@
 
 #include "camera_pins.h"
 #include "Globals.h"
+#include <SPI.h>
+#include <TFT_eSPI.h>       // Hardware-specific library
 
 const char *ssid_Router = "a";           //input your wifi name
 const char *password_Router = "a";  //input your wifi passwords
@@ -37,10 +39,14 @@ camera_config_t config;
 const int RED_LED = 32;
 const int GREEN_LED = 33;
 bool global_isRecognized = false;
+std::string global_name = "not identified";
+
 unsigned long lastUpdateTime = 0;
 
 void startCameraServer();
 void config_init();
+
+TFT_eSPI tft = TFT_eSPI();
 
 void setup() {
   Serial.begin(115200);
@@ -85,21 +91,67 @@ void setup() {
   pinMode(GREEN_LED, OUTPUT);
   digitalWrite(RED_LED, HIGH);
   digitalWrite(GREEN_LED, LOW);
+
+  tft.init();
+  tft.setTextSize(2);
+  tft.fillScreen(TFT_RED);
+  //tft.setRotation(45);
 }
 
+
+int loopCounter = 0;
+bool has_recognized = false;
 void loop() {
   // Current time
   unsigned long currentTime = millis();
+  
+
+  if( loopCounter == 25000){
+    loopCounter = 0;
+    /*Serial.print("yay");
+    tft.setTextColor(TFT_BLACK, TFT_GREEN); // Change the font colour and the background colour
+
+    tft.setCursor(0, 0, 10); // Set cursor at top left of screen
+    tft.println("WAITING");
+    tft.println(global_name.c_str());
+ */
+    //global_isRecognized=true;
+    tft.fillScreen(TFT_RED);
+
+  }
+ 
 
   if(!global_isRecognized) {
     lastUpdateTime = currentTime;
+    loopCounter = loopCounter+1;
   } else if ((currentTime - lastUpdateTime <= 3000)) {
     digitalWrite(RED_LED, LOW);
     digitalWrite(GREEN_LED, HIGH);
+    if(!has_recognized){
+      loopCounter = 0;
+      Serial.print("printou");
+      tft.fillScreen(TFT_GREEN);
+      
+      tft.setTextColor(TFT_BLACK, TFT_BLACK); // Change the font colour and the background colour
+      tft.setCursor(0,  tft.height()/4, 4); // Set cursor at top left of screen
+      tft.println("OK");
+      tft.println(global_name.c_str());
+      has_recognized = true;
+    }    
   } else {
     global_isRecognized = false;
     lastUpdateTime = currentTime;
-
+/*    answer = true;
+    if(answer){
+      tft.setTextWrap(false, false); // Wrap on width and height switched off
+      tft.setTextColor(TFT_MAGENTA, TFT_BLACK);
+      tft.println("pode passar");
+      answer = false;
+    }*/
+    
+    has_recognized = false;
+    loopCounter = loopCounter+1;
+    
     digitalWrite(RED_LED, HIGH);
     digitalWrite(GREEN_LED, LOW);
   }
